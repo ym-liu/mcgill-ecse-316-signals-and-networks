@@ -1,5 +1,7 @@
 import argparse
 import socket
+import random
+import DnsPacket as packet
 
 if __name__ == "__main__":
 
@@ -8,6 +10,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         allow_abbrev=False  # TODO: allow_abbrev=False doesn't work for some reason
     )
+
+    # Create an family=INET type=UDP socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     # optional arguments
     parser.add_argument("-t", type=int, default=5, dest="timeout")
@@ -24,8 +29,20 @@ if __name__ == "__main__":
     # parse the arguments with the previously defined parser
     args = parser.parse_args()
 
+    """
+    create a DNS query packet with the header and its fields and
+    the question which is the domain name itself
+    """
+    # TODO: Create a DNS query packet: [INSERT OUTLINE]
+
     """send query to server for given domain name using UDP socket"""
     # TODO: [INSERT OUTLINE]
+
+    # Have to figure out to which DNS server send the DNS packet
+    dns_server = ("8.8.8.8", 53)
+    # Create a query
+    query = packet.DnsQuery()
+    s.sendto(query, dns_server)
 
     """wait for response to be returned from server"""
     # TODO: [INSERT OUTLINE]
