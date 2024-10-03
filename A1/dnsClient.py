@@ -39,10 +39,15 @@ if __name__ == "__main__":
     # TODO: [INSERT OUTLINE]
 
     # Have to figure out to which DNS server send the DNS packet
-    dns_server = ("8.8.8.8", 53)
-    # Create a query
-    query = packet.DnsQuery()
-    s.sendto(query, dns_server)
+
+    domain = args.name
+    dns_packet = packet.DnsQuery(domain)
+
+    print(f"Sending DNS query for {domain}...")
+    response = dns_packet.send(args.server, args.port)
+
+    # Display raw response
+    print("Raw response from DNS server:", response)
 
     """wait for response to be returned from server"""
     # TODO: [INSERT OUTLINE]

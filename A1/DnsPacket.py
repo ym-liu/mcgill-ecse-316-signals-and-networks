@@ -1,31 +1,123 @@
+import random
+import struct
+import socket
+
+
 class DnsHeader:
-    def __init__(self, transaction_id=None):
-        # If no transaction ID is provided, generate a random 16-bit number
-        self.transaction_id = transaction_id if transaction_id else random.randint(
-            0, 65535)
-        self.flags = 0x0100  # Standard query with recursion desired
-        self.qdcount = 1     # One question
-        self.ancount = 0     # No answers yet
-        self.nscount = 0     # No authority records
-        self.arcount = 0     # No additional records
+    def __init__(self):
+        # Generate a random 16-bit transaction ID
+        self.id = random.randint(0, 65535)
+        self.qr = 0                         # Query (0)
+        self.opcode = 0                     # Standard query (0)
+        # Authoritative Answer (0 in queries)
+        self.aa = 0
+        self.tc = 0                         # Truncated (0)
+        self.rd = 1                         # Recursion desired (1)
+        # Recursion available (set by the server)
+        self.ra = 0
+        self.z = 0                          # Reserved, must be 0
+        self.rcode = 0                      # Response code (0 for no error)
+        self.qdcount = 1                    # Number of questions (1)
+        self.ancount = 0                    # Number of answers (0 in queries)
+        self.nscount = 0                    # Number of authority records (0)
+        self.arcount = 0                    # Number of additional records (0)
 
     # TODO:
     # Build and return the header as a string
     def build(self):
-        return None
+
+        flags = (
+            (self.qr << 15) |        # QR field is 1 bit and is placed at bit 15
+            (self.opcode << 11) |    # Opcode is 4 bits and occupies bits 11-14
+            (self.aa << 10) |        # AA is 1 bit and is placed at bit 10
+            (self.tc << 9) |         # TC is 1 bit and is placed at bit 9
+            (self.rd << 8) |         # RD is 1 bit and is placed at bit 8
+            # RA is 1 bit and is placed at bit 7 (used in responses)
+            (self.ra << 7) |
+            (self.z << 4) |          # Z is 3 bits and occupies bits 4-6
+            # RCODE is 4 bits and occupies bits 0-3 (used in responses)
+            self.rcode
+        )
+
+        # Pack the header fields into a binary format
+        header = struct.pack(">HHHHHH",
+                             self.id,       # Transaction ID
+                             # Flags (QR, Opcode, AA, TC, RD, RA, Z, RCODE)
+                             flags,
+                             self.qdcount,  # Number of questions
+                             self.ancount,  # Number of answer records
+                             self.nscount,  # Number of authority records
+                             self.arcount)  # Number of additional records
+
+        return header
+
 
 class DnsQuestion:
     def __init__(self, domain, qtype=0x0001, qclass=0x0001):
+        """
+        Initializes a DNS Question with:
+        - domain: The domain name being queried (e.g., "www.mcgill.ca").
+        - qtype: The type of query (default is 0x0001, A-record for IP address).
+        - qclass: The class of query (default is 0x0001, Internet class).
+        """
         self.domain = domain
         self.qtype = qtype
         self.qclass = qclass
 
-    # TODO:
-    # Build and return the question as a string
+    def encode_domain_name(self):
+        """
+        Encodes the domain name (QNAME) according to the DNS protocol.
+        Each label is prefixed with its length, and the domain ends with a null byte (0x00).
+        """
+        labels = self.domain.split('.')
+        encoded_name = b''
+        for label in labels:
+            encoded_name += struct.pack('B', len(label)) + \
+                label.encode('utf-8')
+        encoded_name += b'\x00'  # Null byte to signal the end of the domain name
+        return encoded_name
+
     def build(self):
-        return None
+        """
+        Builds the complete DNS Question section:
+        - QNAME: Encoded domain name.
+        - QTYPE: 16-bit type of query (e.g., A, NS, MX).
+        - QCLASS: 16-bit class of query (e.g., IN for Internet).
+        """
+        qname = self.encode_domain_name()
+        qtype_qclass = struct.pack('>HH', self.qtype, self.qclass)
+        return qname + qtype_qclass
+
 
 class DnsQuery:
-    def __init__(self, domain):
+    def __init__(self, domain, qtype=0x0001, qclass=0x0001):
+        # Create instances of DnsHeader and DnsQuestion
         self.header = DnsHeader()
-        self.question = DnsQuestion(domain)
+        self.question = DnsQuestion(domain, qtype, qclass)
+
+    def build(self):
+        """
+        Build the full DNS packet (Header + Question)
+        """
+        header_packet = self.header.build()
+        question_packet = self.question.build()
+        return header_packet + question_packet
+
+    def send(self, dns_server, port):
+        """
+        Sends the DNS query to the specified DNS server and returns the response.
+        """
+        # Create a UDP socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        # Build the DNS query packet
+        query_packet = self.build()  # Correct: this returns bytes
+
+        # Send the packet to the DNS server (requires a bytes-like object)
+        sock.sendto(query_packet, (dns_server, port))
+
+        # Receive the response from the DNS server
+        response, _ = sock.recvfrom(512)  # Buffer size is 512 bytes
+        sock.close()
+
+        return response
