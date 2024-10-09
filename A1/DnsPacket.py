@@ -22,8 +22,6 @@ class DnsHeader:
         self.nscount = 0                    # Number of authority records (0)
         self.arcount = 0                    # Number of additional records (0)
 
-    # TODO:
-    # Build and return the header as a string
     def build(self):
 
         flags = (
@@ -53,7 +51,7 @@ class DnsHeader:
 
 
 class DnsQuestion:
-    def __init__(self, domain, qtype=0x0001, qclass=0x0001):
+    def __init__(self, domain, qtype, qclass=0x0001):
         """
         Initializes a DNS Question with:
         - domain: The domain name being queried (e.g., "www.mcgill.ca").
@@ -75,6 +73,7 @@ class DnsQuestion:
             encoded_name += struct.pack('B', len(label)) + \
                 label.encode('utf-8')
         encoded_name += b'\x00'  # Null byte to signal the end of the domain name
+        print(f"the encoded_name is {encoded_name}")
         return encoded_name
 
     def build(self):
@@ -90,7 +89,7 @@ class DnsQuestion:
 
 
 class DnsQuery:
-    def __init__(self, domain, qtype=0x0001, qclass=0x0001):
+    def __init__(self, domain, qtype, qclass=0x0001):
         # Create instances of DnsHeader and DnsQuestion
         self.header = DnsHeader()
         self.question = DnsQuestion(domain, qtype, qclass)
@@ -103,21 +102,35 @@ class DnsQuery:
         question_packet = self.question.build()
         return header_packet + question_packet
 
-    def send(self, dns_server, port):
+    def send(self, dns_server, port, timeout, retries):
         """
         Sends the DNS query to the specified DNS server and returns the response.
         """
-        # Create a UDP socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Create a UDP socket\
+        i = 1
+        while retries != 0:
+            print(f"Try: {i}")
+            i += 1
+            retries -= 1
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(timeout)
 
-        # Build the DNS query packet
-        query_packet = self.build()  # Correct: this returns bytes
+                # Build the DNS query packet
+                query_packet = self.build()
 
-        # Send the packet to the DNS server (requires a bytes-like object)
-        sock.sendto(query_packet, (dns_server, port))
+                print(f"sending packet to the {dns_server} on port: {port}")
+                # Send the packet to the DNS server (requires a bytes-like object)
+                sock.sendto(query_packet, (dns_server, port))
 
-        # Receive the response from the DNS server
-        response, _ = sock.recvfrom(512)  # Buffer size is 512 bytes
-        sock.close()
+                # Receive the response from the DNS server
+                response, _ = sock.recvfrom(512)  # Buffer size is 512 bytes
+                print("packet received")
+                sock.close()
 
-        return response
+                return response
+            except socket.timeout:
+                print(f"Request timed out after {timeout} seconds")
+                if retries == 0:
+                    print("Max retries reached, no response received.")
+                    return None  # If retries are exhausted, return None
