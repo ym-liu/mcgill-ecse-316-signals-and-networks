@@ -30,8 +30,6 @@ if __name__ == "__main__":
     print("Getting the arguments")
     args = init_args()
 
-    domain = args.name
-
     if args.mx:
         qtype = 0x000f
     elif args.ns:
@@ -39,9 +37,9 @@ if __name__ == "__main__":
     else:
         qtype = 0x0001
 
-    dns_packet = packet.DnsQuery(domain, qtype)
+    dns_packet = packet.DnsQuery(args.name, qtype)
 
-    print(f"Sending DNS query for {domain}")
+    print(f"Sending DNS query for {args.name}")
     print(
         f"Timeout is: {args.timeout}, max retires is {args.retries}, mx is: {args.mx}, ns is: {args.ns}, server: {args.server}, domain: {args.name}, qtype: {qtype}")
     response = dns_packet.send(
