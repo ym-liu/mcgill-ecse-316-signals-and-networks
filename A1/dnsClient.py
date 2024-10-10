@@ -1,5 +1,6 @@
 import argparse
 import DnsPacket as packet
+import DnsResponse as response
 
 
 def init_args():
@@ -43,10 +44,12 @@ if __name__ == "__main__":
     print(
         f"Timeout is: {args.timeout}, max retires is {args.retries}, mx is: {args.mx}, ns is: {args.ns}, server: {args.server}, domain: {args.name}, qtype: {qtype}"
     )
-    response = dns_packet.send(args.server, args.port, args.timeout, args.retries)
+    raw_response = dns_packet.send(args.server, args.port, args.timeout, args.retries)
 
     # Display raw response
-    print("Raw response from DNS server:", response)
+    print("Raw response from DNS server:", raw_response)
+
+    dns_response = response.DnsResponse(raw_response)
 
     """wait for response to be returned from server"""
     # TODO: [INSERT OUTLINE]
