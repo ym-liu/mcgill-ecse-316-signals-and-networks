@@ -1,22 +1,17 @@
 import argparse
-import socket
-import random
 import DnsPacket as packet
 
-if __name__ == "__main__":
 
+def init_args():
     """parse the command line arguments (stdin)"""
     # create a parser
     parser = argparse.ArgumentParser(
         allow_abbrev=False  # TODO: allow_abbrev=False doesn't work for some reason
     )
 
-    # Create an family=INET type=UDP socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
     # optional arguments
     parser.add_argument("-t", type=int, default=5, dest="timeout")
-    parser.add_argument("-r", type=int, default=3, dest="max-retries")
+    parser.add_argument("-r", type=int, default=3, dest="retries")
     parser.add_argument("-p", type=int, default=53, dest="port")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-mx", action="store_true", default=False)
@@ -27,24 +22,28 @@ if __name__ == "__main__":
     parser.add_argument("name", type=str)
 
     # parse the arguments with the previously defined parser
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    """
-    create a DNS query packet with the header and its fields and
-    the question which is the domain name itself
-    """
-    # TODO: Create a DNS query packet: [INSERT OUTLINE]
 
-    """send query to server for given domain name using UDP socket"""
-    # TODO: [INSERT OUTLINE]
+if __name__ == "__main__":
 
-    # Have to figure out to which DNS server send the DNS packet
+    print("Getting the arguments")
+    args = init_args()
 
-    domain = args.name
-    dns_packet = packet.DnsQuery(domain)
+    if args.mx:
+        qtype = 0x000f
+    elif args.ns:
+        qtype = 0x0002
+    else:
+        qtype = 0x0001
 
-    print(f"Sending DNS query for {domain}...")
-    response = dns_packet.send(args.server, args.port)
+    dns_packet = packet.DnsQuery(args.name, qtype)
+
+    print(f"Sending DNS query for {args.name}")
+    print(
+        f"Timeout is: {args.timeout}, max retires is {args.retries}, mx is: {args.mx}, ns is: {args.ns}, server: {args.server}, domain: {args.name}, qtype: {qtype}")
+    response = dns_packet.send(
+        args.server, args.port, args.timeout, args.retries)
 
     # Display raw response
     print("Raw response from DNS server:", response)
