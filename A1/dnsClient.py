@@ -31,7 +31,7 @@ if __name__ == "__main__":
     args = init_args()
 
     if args.mx:
-        qtype = 0x000f
+        qtype = 0x000F
     elif args.ns:
         qtype = 0x0002
     else:
@@ -41,9 +41,9 @@ if __name__ == "__main__":
 
     print(f"Sending DNS query for {args.name}")
     print(
-        f"Timeout is: {args.timeout}, max retires is {args.retries}, mx is: {args.mx}, ns is: {args.ns}, server: {args.server}, domain: {args.name}, qtype: {qtype}")
-    response = dns_packet.send(
-        args.server, args.port, args.timeout, args.retries)
+        f"Timeout is: {args.timeout}, max retires is {args.retries}, mx is: {args.mx}, ns is: {args.ns}, server: {args.server}, domain: {args.name}, qtype: {qtype}"
+    )
+    response = dns_packet.send(args.server, args.port, args.timeout, args.retries)
 
     # Display raw response
     print("Raw response from DNS server:", response)
@@ -53,3 +53,4 @@ if __name__ == "__main__":
 
     """interpret response and output result to terminal display (stdout)"""
     # TODO: [INSERT OUTLINE]
+    # retransmit queries that are lost
