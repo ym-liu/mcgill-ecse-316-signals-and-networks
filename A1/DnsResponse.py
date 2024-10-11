@@ -1,4 +1,5 @@
 import struct
+import dnsClient as client
 
 
 class DnsResponse:
@@ -89,6 +90,7 @@ class DnsResponse:
         answers = []
 
         for i in range(ancount):
+
             domain_name, offset = self.decode_domain_name(raw_response, offset)
             rtype, rclass, ttl, rdlength = struct.unpack(
                 ">HHIH", raw_response[offset : offset + 10]
@@ -118,9 +120,18 @@ class DnsResponse:
                 rdata = exchange
             else:
                 # TODO: error
+                offset += rdlength
                 continue
 
             offset += rdlength
+
+            # error handling: ensure response answer rclass flag is 0x0001
+            if rclass != 0x0001:
+                client.print_error(
+                    "Response answer class is not set to 0x0001, Internet class",
+                    "unexpected",
+                )
+                continue
 
             # create answer dictionary and append it to list of all answers
             answer = dict.fromkeys(self.answer_keys)
