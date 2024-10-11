@@ -6,23 +6,39 @@ class DnsResponse:
         """
         Initializes a DNS Response structure with:
         - domain: The domain name to which the record pertains (e.g., "www.mcgill.ca").
-        - rtype: The type of data in the RDATA field.
-        - rclass: The class of response (expected is 0x0001, Internet class; error otherwise).
-        - ttl:
-        - rdlength:
-        - rdata:
-        - preference:
-        - exchange:
+        - question:
+        -
+        -
         """
-        self.domain = 0
-        self.rtype = 0
-        self.rclass = 0
-        self.ttl = 0
-        self.rdlength = 0
-        self.rdata = 0
-        self.preference = 0
-        self.exchange = 0
+        # header
+        self.header = {
+            "id": None,
+            "flags": None,
+            "qdcount": None,
+            "ancount": None,
+            "nscount": None,
+            "arcount": None,
+        }
 
+        # question
+        self.question = {"domain": None, "rtype": None, "rclass": None}
+
+        # answer
+        self.answers = []
+        self.answer_keys = [
+            "domain_name",
+            "rtype",
+            "rclass",
+            "ttl",
+            "rdlength",
+            "rdata",
+            "rdata_preference",
+        ]
+
+        # additional
+        self.additionals = []
+
+        # parse dns response
         self.decode_response(raw_response)
 
     def decode_domain_name(self, raw_response, offset):
@@ -66,11 +82,12 @@ class DnsResponse:
         for i in range(ancount):
             domain_name, offset = self.decode_domain_name(raw_response, offset)
             rtype, rclass, ttl, rdlength = struct.unpack(
-                "!HHIH", raw_response[offset : offset + 10]
+                ">HHIH", raw_response[offset : offset + 10]
             )
             offset += 10
 
             rdata = ""
+            preference = -1  # default is no preference, not MX-query
             # if 0x0001, then type-A (host-address)
             # and it's the IP-address (4 octets)
             if rtype == 0x0001:
@@ -89,13 +106,23 @@ class DnsResponse:
             elif rtype == 0x000F:
                 preference = struct.unpack(">H", raw_response[offset : offset + 2])
                 exchange, tmp_offset = self.decode_domain_name(raw_response, offset + 2)
-                rdata = preference, exchange
+                rdata = exchange
             else:
                 # TODO: error
                 continue
 
             offset += rdlength
-            answer = domain_name, rtype, rclass, ttl, rdlength, rdata
+
+            # create answer dictionary and append it to list of all answers
+            answer = dict.fromkeys(self.answer_keys)
+            answer["domain_name"] = domain_name
+            answer["rtype"] = rtype
+            answer["rclass"] = domain_name
+            answer["ttl"] = ttl
+            answer["rdlength"] = rdlength
+            answer["rdata"] = rdata
+            answer["rdata_preference"] = preference
+
             answers.append(answer)
 
         return answers, offset
@@ -118,16 +145,15 @@ class DnsResponse:
         - nscount: Number of authority records
         - arcount: Number of additional records
         """
-        id, flags, qdcount, ancount, nscount, arcount = struct.unpack(
-            ">HHHHHH", raw_response[:12]
-        )
+        (
+            self.header["id"],
+            self.header["flags"],
+            self.header["qdcount"],
+            self.header["ancount"],
+            self.header["nscount"],
+            self.header["arcount"],
+        ) = struct.unpack(">HHHHHH", raw_response[:12])
         offset = 12  # update the offset to after the header in the raw response
-
-        print(f"Transaction ID: {id}")
-        print(f"Flags: {flags}")
-        print(
-            f"Questions: {qdcount}, Answer RRs: {ancount}, Authority RRs: {nscount}, Additional RRs: {arcount}"
-        )
 
         """
         DECODE THE QUESTION
@@ -137,12 +163,11 @@ class DnsResponse:
         - rtype: The type of query (0x0001, 0x0002, or 0x000f).
         - rclass: The class of query (default is 0x0001, Internet class).
         """
-
-        domain, offset = self.decode_domain_name(raw_response, offset)
-        rtype, rclass = struct.unpack(">HH", raw_response[offset : offset + 4])
+        self.question["domain"], offset = self.decode_domain_name(raw_response, offset)
+        self.question["rtype"], self.question["rclass"] = struct.unpack(
+            ">HH", raw_response[offset : offset + 4]
+        )
         offset += 4
-
-        print(f"Domain: {domain}, Type: {rtype}, Class: {rclass}")
 
         """
         DECODE THE ANSWERS
@@ -156,15 +181,20 @@ class DnsResponse:
         - rdlength: 
         - rdata: 
         """
-        answers, offset = self.decode_answer(ancount, raw_response, offset)
-        print(f"ANSWER: {answers}")
+        self.answers, offset = self.decode_answer(
+            self.header["ancount"], raw_response, offset
+        )
 
         """SKIP AUTHORITY RECORDS"""
         # still need to increment offset, same format as answers
-        authority, offset = self.decode_answer(nscount, raw_response, offset)
-        # print(f"AUTHORITY: {authority}")
+        authority, offset = self.decode_answer(
+            self.header["nscount"], raw_response, offset
+        )
 
-        """DECODE ADDITIONAL RECORDS"""
-        # same format as answers
-        additional, offset = self.decode_answer(arcount, raw_response, offset)
-        print(f"ADDITIONAL: {additional}")
+        """
+        DECODE ADDITIONAL RECORDS
+        same format as answers
+        """
+        self.additional, offset = self.decode_answer(
+            self.header["arcount"], raw_response, offset
+        )
