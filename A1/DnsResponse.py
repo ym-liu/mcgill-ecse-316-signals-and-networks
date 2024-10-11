@@ -13,7 +13,16 @@ class DnsResponse:
         # header
         self.header = {
             "id": None,
-            "flags": None,
+            "flags": {
+                "qr": None,
+                "opcode": None,
+                "aa": None,
+                "tc": None,
+                "rd": None,
+                "ra": None,
+                "z": None,
+                "rcode": None,
+            },
             "qdcount": None,
             "ancount": None,
             "nscount": None,
@@ -117,7 +126,7 @@ class DnsResponse:
             answer = dict.fromkeys(self.answer_keys)
             answer["domain_name"] = domain_name
             answer["rtype"] = rtype
-            answer["rclass"] = domain_name
+            answer["rclass"] = rclass
             answer["ttl"] = ttl
             answer["rdlength"] = rdlength
             answer["rdata"] = rdata
@@ -145,15 +154,27 @@ class DnsResponse:
         - nscount: Number of authority records
         - arcount: Number of additional records
         """
+        # unpack header
         (
             self.header["id"],
-            self.header["flags"],
+            flags,
             self.header["qdcount"],
             self.header["ancount"],
             self.header["nscount"],
             self.header["arcount"],
         ) = struct.unpack(">HHHHHH", raw_response[:12])
-        offset = 12  # update the offset to after the header in the raw response
+        # get individual flags
+        self.header["flags"]["qr"] = flags >> 15  # QR: bit 15
+        self.header["flags"]["opcode"] = (flags >> 11) & 0b1111  # opcode: bits 11-14
+        self.header["flags"]["aa"] = (flags >> 10) & 0b1  # aa: bit 10
+        self.header["flags"]["tc"] = (flags >> 9) & 0b1  # tc: bit 9
+        self.header["flags"]["rd"] = (flags >> 8) & 0b1  # rd: bit 8
+        self.header["flags"]["ra"] = (flags >> 7) & 0b1  # ra: bit 7
+        self.header["flags"]["z"] = (flags >> 4) & 0b111  # z: bits 4-6
+        self.header["flags"]["rcode"] = flags & 0b1111  # rcode: bit 0-3
+
+        # update the offset to after the header in the raw response
+        offset = 12
 
         """
         DECODE THE QUESTION
@@ -163,10 +184,13 @@ class DnsResponse:
         - rtype: The type of query (0x0001, 0x0002, or 0x000f).
         - rclass: The class of query (default is 0x0001, Internet class).
         """
+        # unpack question
         self.question["domain"], offset = self.decode_domain_name(raw_response, offset)
         self.question["rtype"], self.question["rclass"] = struct.unpack(
             ">HH", raw_response[offset : offset + 4]
         )
+
+        # update the offset to after the question in the raw response
         offset += 4
 
         """

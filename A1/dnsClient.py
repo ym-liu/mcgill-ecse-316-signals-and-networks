@@ -26,20 +26,24 @@ def init_args():
     return parser.parse_args()
 
 
-def print_dns_response_answer(count, records):
+def print_dns_response_answer(count, aa, records):
     for i in range(count):
-        # TODO: [auth | nonauth]
+
+        # check if response received is authoritative
+        auth = "nonauth"
+        if aa:
+            auth = "auth"
+
+        # print answer / additional record according to rtype
         if records[i]["rtype"] == 0x0001:
-            print(f"IP\t{records[i]["rdata"]}\t{records[i]["ttl"]}\t[auth | nonauth]")
+            print(f"IP\t{records[i]["rdata"]}\t{records[i]["ttl"]}\t{auth}")
         elif records[i]["rtype"] == 0x0002:
-            print(f"NS\t{records[i]["rdata"]}\t{records[i]["ttl"]}\t[auth | nonauth]")
+            print(f"NS\t{records[i]["rdata"]}\t{records[i]["ttl"]}\t{auth}")
         elif records[i]["rtype"] == 0x0005:
-            print(
-                f"CNAME\t{records[i]["rdata"]}\t{records[i]["ttl"]}\t[auth | nonauth]"
-            )
+            print(f"CNAME\t{records[i]["rdata"]}\t{records[i]["ttl"]}\t{auth}")
         elif records[i]["rtype"] == 0x000F:
             print(
-                f"MX\t{records[i]["rdata"]}\t{records[i]["rdata_preference"]}\t{records[i]["ttl"]}\t[auth | nonauth]"
+                f"MX\t{records[i]["rdata"]}\t{records[i]["rdata_preference"]}\t{records[i]["ttl"]}\t{auth}"
             )
         else:
             # TODO: error?
@@ -65,12 +69,20 @@ def print_dns_response(args, dns_response):
     # Display records in the Answer section
     if dns_response.header["ancount"] > 0:
         print(f"***Answer Section ({dns_response.header["ancount"]} records)***")
-    print_dns_response_answer(dns_response.header["ancount"], dns_response.answers)
+    print_dns_response_answer(
+        dns_response.header["ancount"],
+        dns_response.header["flags"]["aa"],
+        dns_response.answers,
+    )
 
     # Display records in the Additional section
     if dns_response.header["arcount"] > 0:
         print(f"***Additional Section ({dns_response.header["arcount"]} records)***")
-    print_dns_response_answer(dns_response.header["arcount"], dns_response.additional)
+    print_dns_response_answer(
+        dns_response.header["arcount"],
+        dns_response.header["flags"]["aa"],
+        dns_response.additional,
+    )
 
     print(f"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
     print(f"Transaction ID: {dns_response.header["id"]}")
