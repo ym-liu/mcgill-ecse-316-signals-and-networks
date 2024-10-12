@@ -1,5 +1,5 @@
 import argparse
-import DnsPacket as packet
+import DnsQuery as query
 import DnsResponse as response
 
 
@@ -108,18 +108,18 @@ if __name__ == "__main__":
     else:
         qtype = 0x0001
 
-    dns_packet = packet.DnsQuery(args.name, qtype)
+    dns_query = query.DnsQuery(args.name, qtype)
 
     print(
         f"Timeout is: {args.timeout}, max retires is {args.retries}, mx is: {args.mx}, ns is: {args.ns}, server: {args.server}, domain: {args.name}, qtype: {qtype}"
     )
 
-    """error handling: scan through dns_packet to find errors"""
+    """error handling: scan through dns_query to find errors"""
     # ensure query QR flag is 0
-    if dns_packet.header.qr != 0:
+    if dns_query.header.qr != 0:
         print_error("Query QR flag is not set to 0", "unexpected")
 
-    raw_response = dns_packet.send(args.server, args.port, args.timeout, args.retries)
+    raw_response = dns_query.send(args.server, args.port, args.timeout, args.retries)
 
     """TODO: wait for response to be returned from server"""
     # Summarize query that has been sent
@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
     """error handling: scan through dns_response to find errors"""
     # compare id to match up response to request
-    if dns_packet.header.id != dns_response.header["id"]:
+    if dns_query.header.id != dns_response.header["id"]:
         print_error(
             "Query transsaction ID does not match response transaction ID", "unexpected"
         )
