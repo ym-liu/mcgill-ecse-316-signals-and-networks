@@ -1,13 +1,27 @@
 import argparse
 import time
+import sys
 import DnsQuery as query
 import DnsResponse as response
 
 
+class CustomArgumentParser(argparse.ArgumentParser):
+    def error(self, error_message):
+        print_error(error_message, "syntax")
+        sys.exit(2)
+
+
 def init_args():
+
+    # error handling: ensure correct syntax for args.server (starts with @)
+    def ensure_at(argument):
+        if not argument.startswith("@"):
+            raise argparse.ArgumentTypeError(f"Argument {argument} must start with @")
+        return argument
+
     """parse the command line arguments (stdin)"""
     # create a parser
-    parser = argparse.ArgumentParser(
+    parser = CustomArgumentParser(
         allow_abbrev=False  # TODO: allow_abbrev=False doesn't work for some reason
     )
 
@@ -20,11 +34,19 @@ def init_args():
     group.add_argument("-ns", action="store_true", default=False)
 
     # required, positional arguments
-    parser.add_argument("server", type=str)
+    parser.add_argument("server", type=ensure_at)
     parser.add_argument("name", type=str)
 
     # parse the arguments with the previously defined parser
-    return parser.parse_args()
+    args = None
+    try:
+        args = parser.parse_args()
+    except SystemExit as error:
+        raise
+
+    args.server = args.server[1:]  # truncate the @
+
+    return args
 
 
 def print_dns_response_answer(count, aa, records):
@@ -47,8 +69,6 @@ def print_dns_response_answer(count, aa, records):
             print(
                 f"MX\t{records[i]["rdata"]}\t{records[i]["rdata_preference"]}\t{records[i]["ttl"]}\t{auth}"
             )
-        else:
-            print_error("Response answer type is unrecognized", "unexpected")
 
 
 def print_dns_response(dns_response):
@@ -71,20 +91,6 @@ def print_dns_response(dns_response):
         dns_response.additional,
     )
 
-    """
-    print(f"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-    print(f"Transaction ID: {dns_response.header["id"]}")
-    print(f"Flags: {dns_response.header["flags"]}")
-    print(
-        f"Questions: {dns_response.header["qdcount"]}, Answer RRs: {dns_response.header["ancount"]}, Authority RRs: {dns_response.header["nscount"]}, Additional RRs: {dns_response.header["arcount"]}"
-    )
-    print(
-        f"Domain: {dns_response.question["domain"]}, Type: {dns_response.question["rtype"]}, Class: {dns_response.question["rclass"]}"
-    )
-    print(f"ANSWER: {dns_response.answers}")
-    print(f"ADDITIONAL: {dns_response.additional}")
-    """
-
 
 def print_error(error_message, error_type="other"):
     if error_type == "syntax":
@@ -98,10 +104,14 @@ def print_error(error_message, error_type="other"):
 
 
 def main():
-    print("---------- Parsing the command line arguments (STDIN) ----------")
+    """
+    Parse the command line arguments (STDIN)
+    """
     args = init_args()
 
-    print("---------- Building DNS query ----------")
+    """
+    Build DNS query
+    """
     if args.mx:
         qtype = 0x000F
     elif args.ns:
@@ -111,26 +121,16 @@ def main():
 
     dns_query = query.DnsQuery(args.name, qtype)
 
-    """error handling: scan through dns_query to find errors"""
+    # error handling: scan through dns_query to find errors
     # ensure query QR flag is 0
     if dns_query.header.qr != 0:
         print_error("Query QR flag is not set to 0", "unexpected")
         return
 
-    print("---------- Sending DNS query ----------")
-
-    start_time = time.time()
-    raw_response, retries = dns_query.send(
-        args.server, args.port, args.timeout, args.retries
-    )
-    end_time = time.time()
-
-    # ensure raw_response is not None
-    if raw_response == None:
-        return
-
-    """TODO: wait for response to be returned from server"""
-    # Summarize query that has been sent
+    """
+    Send DNS query
+    """
+    # summarize dns query that has been sent
     print(f"DnsClient sending request for {args.name}")
     print(f"Server: {args.server}")
     if args.mx:
@@ -141,17 +141,34 @@ def main():
         qtype = "A"
     print(f"Request type: {qtype}")
 
-    # TODO: Summarize the performance and content of the response
+    # send dns query
+    start_time = time.time()
+    raw_response, retries = dns_query.send(
+        args.server, args.port, args.timeout, args.retries
+    )
+    end_time = time.time()
+
+    # ensure raw_response is not None
+    if raw_response == None:
+        return
+
+    """
+    Wait for response to be returned from server
+    """
+    # summarize the performance and content of the response
     print(
         f"Response received after {(end_time - start_time):.5f} seconds ({args.retries - retries} retries)"
     )
 
-    print("---------- Interpreting DNS response ----------")
-    # Display raw response
-    print("Raw response from DNS server:", raw_response)
+    """
+    Interprete DNS response
+    """
     dns_response = response.DnsResponse(raw_response)
 
-    """error handling: scan through dns_response to find errors"""
+    """
+    Error handling: Scan through dns_response to find errors
+    If no errors, output result to terminal display (STDOUT)
+    """
     # compare id to match up response to request
     if dns_query.header.id != dns_response.header["id"]:
         print_error(
@@ -181,7 +198,8 @@ def main():
             "Refused: The name server refuses to perform the requested operation for policy reasons"
         )
 
-    else:  # output result to terminal display (STDOUT)
+    # if no error, output result to terminal display (STDOUT)
+    else:
         print_dns_response(dns_response)
 
 

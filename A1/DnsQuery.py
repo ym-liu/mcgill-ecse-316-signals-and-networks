@@ -77,7 +77,6 @@ class DnsQuestion:
         for label in labels:
             encoded_name += struct.pack("B", len(label)) + label.encode("utf-8")
         encoded_name += b"\x00"  # Null byte to signal the end of the domain name
-        print(f"the encoded_name is {encoded_name}")
         return encoded_name
 
     def build(self):
@@ -114,7 +113,6 @@ class DnsQuery:
         i = 1
         retries = max_retries
         while retries != 0:
-            print(f"Try: {i}")
             i += 1
             retries -= 1
             try:

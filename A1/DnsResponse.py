@@ -64,24 +64,24 @@ class DnsResponse:
 
             # if length = 0, then it marks the end of the domain name
             if label_length == 0:
-                offset += 1
+                offset += 1  # zero octet terminator is 1 byte
                 break
-            # if length >= 0xC0, then it's a pointer (compressed name)
+            # if length >= 0xC0 (first two bits set to 1), then it's a pointer (compressed name)
             elif label_length >= 0xC0:
-                # TODO: it's a pointer (compression)
                 pointer = (
                     struct.unpack(">H", raw_response[offset : offset + 2])[0] & 0x3FFF
                 )
+                # decode name starting from where pointer indicates
                 labels.append(self.decode_domain_name(raw_response, pointer)[0])
-                offset += 2
+                offset += 2  # pointer is 2 bytes
                 break
             # else, it's a normal label
             else:
-                offset += 1
+                offset += 1  # label length indicator is 1 byte
                 labels.append(
                     raw_response[offset : offset + label_length].decode("utf-8")
                 )
-                offset += label_length
+                offset += label_length  # increment offset by label length
 
         decoded_name = ".".join(labels)
         return decoded_name, offset
@@ -107,19 +107,18 @@ class DnsResponse:
             # if 0x0002, then type-NS (name server)
             # and it's the name of the server in same format as QNAME
             elif rtype == 0x0002:
-                rdata, tmp_offset = self.decode_domain_name(raw_response, offset)
+                rdata, _ = self.decode_domain_name(raw_response, offset)
             # if 0x0005, then CNAME
             # and it's the name of the alias in same format as QNAME
             elif rtype == 0x0005:
-                rdata, tmp_offset = self.decode_domain_name(raw_response, offset)
+                rdata, _ = self.decode_domain_name(raw_response, offset)
             # if 0x000F, MX-query (mail server)
             # then it has preference (2 bytes) and exchange (in same format as QNAME)
             elif rtype == 0x000F:
                 preference = struct.unpack(">H", raw_response[offset : offset + 2])
-                exchange, tmp_offset = self.decode_domain_name(raw_response, offset + 2)
+                exchange, _ = self.decode_domain_name(raw_response, offset + 2)
                 rdata = exchange
             else:
-                client.print_error("Response answer type is unrecognized", "unexpected")
                 offset += rdlength
                 continue
 
