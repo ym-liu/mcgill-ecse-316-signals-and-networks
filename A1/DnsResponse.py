@@ -119,7 +119,7 @@ class DnsResponse:
                 exchange, tmp_offset = self.decode_domain_name(raw_response, offset + 2)
                 rdata = exchange
             else:
-                # TODO: error
+                client.print_error("Response answer type is unrecognized", "unexpected")
                 offset += rdlength
                 continue
 

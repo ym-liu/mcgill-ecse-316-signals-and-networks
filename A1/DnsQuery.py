@@ -1,6 +1,7 @@
 import random
 import struct
 import socket
+import dnsClient as client
 
 
 class DnsHeader:
@@ -105,12 +106,13 @@ class DnsQuery:
         question_packet = self.question.build()
         return header_packet + question_packet
 
-    def send(self, dns_server, port, timeout, retries):
+    def send(self, dns_server, port, timeout, max_retries):
         """
         Sends the DNS query to the specified DNS server and returns the response.
         """
         # Create a UDP socket\
         i = 1
+        retries = max_retries
         while retries != 0:
             print(f"Try: {i}")
             i += 1
@@ -122,18 +124,18 @@ class DnsQuery:
                 # Build the DNS query packet
                 query_packet = self.build()
 
-                print(f"sending packet to the {dns_server} on port: {port}")
                 # Send the packet to the DNS server (requires a bytes-like object)
                 sock.sendto(query_packet, (dns_server, port))
 
                 # Receive the response from the DNS server
                 response, _ = sock.recvfrom(512)  # Buffer size is 512 bytes
-                print("packet received")
+
+                # after receiving packet, close socket
                 sock.close()
 
-                return response
+                return response, retries
+
             except socket.timeout:
-                print(f"Request timed out after {timeout} seconds")
                 if retries == 0:
-                    print("Max retries reached, no response received.")
-                    return None  # If retries are exhausted, return None
+                    client.print_error(max_retries, "maxretries")
+                    return None, retries  # If retries are exhausted, return None

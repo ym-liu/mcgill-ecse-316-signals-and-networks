@@ -1,4 +1,5 @@
 import argparse
+import time
 import DnsQuery as query
 import DnsResponse as response
 
@@ -47,8 +48,7 @@ def print_dns_response_answer(count, aa, records):
                 f"MX\t{records[i]["rdata"]}\t{records[i]["rdata_preference"]}\t{records[i]["ttl"]}\t{auth}"
             )
         else:
-            # TODO: error?
-            pass
+            print_error("Response answer type is unrecognized", "unexpected")
 
 
 def print_dns_response(dns_response):
@@ -71,6 +71,7 @@ def print_dns_response(dns_response):
         dns_response.additional,
     )
 
+    """
     print(f"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
     print(f"Transaction ID: {dns_response.header["id"]}")
     print(f"Flags: {dns_response.header["flags"]}")
@@ -82,6 +83,7 @@ def print_dns_response(dns_response):
     )
     print(f"ANSWER: {dns_response.answers}")
     print(f"ADDITIONAL: {dns_response.additional}")
+    """
 
 
 def print_error(error_message, error_type="other"):
@@ -95,12 +97,11 @@ def print_error(error_message, error_type="other"):
         print(f"ERROR\t{error_message}")
 
 
-if __name__ == "__main__":
-
+def main():
     print("---------- Parsing the command line arguments (STDIN) ----------")
     args = init_args()
 
-    print("---------- Building and sending DNS query ----------")
+    print("---------- Building DNS query ----------")
     if args.mx:
         qtype = 0x000F
     elif args.ns:
@@ -110,16 +111,23 @@ if __name__ == "__main__":
 
     dns_query = query.DnsQuery(args.name, qtype)
 
-    print(
-        f"Timeout is: {args.timeout}, max retires is {args.retries}, mx is: {args.mx}, ns is: {args.ns}, server: {args.server}, domain: {args.name}, qtype: {qtype}"
-    )
-
     """error handling: scan through dns_query to find errors"""
     # ensure query QR flag is 0
     if dns_query.header.qr != 0:
         print_error("Query QR flag is not set to 0", "unexpected")
+        return
 
-    raw_response = dns_query.send(args.server, args.port, args.timeout, args.retries)
+    print("---------- Sending DNS query ----------")
+
+    start_time = time.time()
+    raw_response, retries = dns_query.send(
+        args.server, args.port, args.timeout, args.retries
+    )
+    end_time = time.time()
+
+    # ensure raw_response is not None
+    if raw_response == None:
+        return
 
     """TODO: wait for response to be returned from server"""
     # Summarize query that has been sent
@@ -134,7 +142,9 @@ if __name__ == "__main__":
     print(f"Request type: {qtype}")
 
     # TODO: Summarize the performance and content of the response
-    print(f"Response received after [time] seconds ([num-retries] retries)")
+    print(
+        f"Response received after {(end_time - start_time):.5f} seconds ({args.retries - retries} retries)"
+    )
 
     print("---------- Interpreting DNS response ----------")
     # Display raw response
@@ -145,10 +155,10 @@ if __name__ == "__main__":
     # compare id to match up response to request
     if dns_query.header.id != dns_response.header["id"]:
         print_error(
-            "Query transsaction ID does not match response transaction ID", "unexpected"
+            "Query transaction ID does not match response transaction ID", "unexpected"
         )
     # ensure response QR flag is 1
-    if dns_response.header["flags"]["qr"] != 1:
+    elif dns_response.header["flags"]["qr"] != 1:
         print_error("Response QR flag is not set to 1", "unexpected")
     # ensure response RA flag is 1
     elif dns_response.header["flags"]["ra"] != 1:
@@ -174,4 +184,6 @@ if __name__ == "__main__":
     else:  # output result to terminal display (STDOUT)
         print_dns_response(dns_response)
 
-    # retransmit queries that are lost
+
+if __name__ == "__main__":
+    main()
