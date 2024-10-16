@@ -8,7 +8,7 @@ YuMeng Liu
 
 ## Instructions: How to use the program ##
 
-Requires any version of pythonm 3.0+
+Requires any version of python 3.0+
 1. Open a terminal.
 2. Clone the repository: ``` git clone https://github.com/ym-liu/mcgill-ecse-316-signals-and-networks.git ```
 3. For a simple query type:
