@@ -12,8 +12,14 @@ Requires any version of python 3.0+
 1. Open a terminal.
 2. Clone the repository: ``` git clone https://github.com/ym-liu/mcgill-ecse-316-signals-and-networks.git ```
 3. For a simple query type:
- ```python A1/dnsClient.py @132.206.85.18 www.mcgill.ca```
+ ```python A1/dnsClient.py -t [timeout] -r [max-retries] @<server> <name>```
 in the terminal
+4. If a different request type mail server or name server:
+
+   
+       For mail server python A1/dnsClient.py -t [timeout] -r [max-retries] -mx @<server> <name>
+       
+       For name server python A1/dnsClient.py -t [timeout] -r [max-retries] -ns @<server> <name>  
 
 ## Argumments ##
 - server (required) is the IPv4 address of the DNS server, in a.b.c.d. format
