@@ -14,10 +14,22 @@ class CustomArgumentParser(argparse.ArgumentParser):
 def init_args():
 
     # error handling: ensure correct syntax for args.server (starts with @)
-    def ensure_at(argument):
-        if not argument.startswith("@"):
+    def ensure_at(value, argument):
+        if not value.startswith("@"):
             raise argparse.ArgumentTypeError(f"Argument {argument} must start with @")
-        return argument
+        return value
+
+    # error handling: ensure correct syntax for args.timeout and args.retries (positive int)
+    def ensure_positive(value, argument):
+        try:
+            value = int(value)
+            if value <= 0:
+                raise argparse.ArgumentTypeError(
+                    f"Argument {argument} must be strictly positive"
+                )
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Argument {argument} must be an integer")
+        return value
 
     """parse the command line arguments (stdin)"""
     # create a parser
@@ -26,15 +38,25 @@ def init_args():
     )
 
     # optional arguments
-    parser.add_argument("-t", type=int, default=5, dest="timeout")
-    parser.add_argument("-r", type=int, default=3, dest="retries")
+    parser.add_argument(
+        "-t",
+        type=lambda val: ensure_positive(val, "timeout"),
+        default=5,
+        dest="timeout",
+    )
+    parser.add_argument(
+        "-r",
+        type=lambda val: ensure_positive(val, "retries"),
+        default=3,
+        dest="retries",
+    )
     parser.add_argument("-p", type=int, default=53, dest="port")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-mx", action="store_true", default=False)
     group.add_argument("-ns", action="store_true", default=False)
 
     # required, positional arguments
-    parser.add_argument("server", type=ensure_at)
+    parser.add_argument("server", type=lambda val: ensure_at(val, "server"))
     parser.add_argument("name", type=str)
 
     # parse the arguments with the previously defined parser
@@ -124,7 +146,7 @@ def main():
     # error handling: scan through dns_query to find errors
     # ensure query QR flag is 0
     if dns_query.header.qr != 0:
-        print_error("Query QR flag is not set to 0", "unexpected")
+        print_error("Unexpected query: Query QR flag is not set to 0")
         return
 
     """

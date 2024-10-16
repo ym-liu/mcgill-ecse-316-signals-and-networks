@@ -54,10 +54,8 @@ class DnsResponse:
     def decode_domain_name(self, raw_response, offset):
         """
         Decodes the domain name (RNAME) according to the DNS protocol.
-        Each label is prefixed with its length, and the domain ends with a null byte (0x00).
         """
         labels = []
-        # offset = 0
 
         while True:
             label_length = raw_response[offset]
@@ -115,7 +113,7 @@ class DnsResponse:
             # if 0x000F, MX-query (mail server)
             # then it has preference (2 bytes) and exchange (in same format as QNAME)
             elif rtype == 0x000F:
-                preference = struct.unpack(">H", raw_response[offset : offset + 2])
+                preference = struct.unpack(">H", raw_response[offset : offset + 2])[0]
                 exchange, _ = self.decode_domain_name(raw_response, offset + 2)
                 rdata = exchange
             else:
