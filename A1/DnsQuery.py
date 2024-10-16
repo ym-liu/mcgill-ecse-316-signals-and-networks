@@ -59,9 +59,8 @@ class DnsQuestion:
     def __init__(self, domain, qtype, qclass=0x0001):
         """
         Initializes a DNS Question with:
-        - domain: The domain name being queried (e.g., "www.mcgill.ca").
+        - domain: The domain name being queried
         - qtype: The type of query (default is 0x0001, A-record for IP address).
-        - qclass: The class of query (default is 0x0001, Internet class).
         """
         self.domain = domain
         self.qtype = qtype
@@ -82,9 +81,9 @@ class DnsQuestion:
     def build(self):
         """
         Builds the complete DNS Question section:
-        - QNAME: Encoded domain name.
-        - QTYPE: 16-bit type of query (e.g., A, NS, MX).
-        - QCLASS: 16-bit class of query (e.g., IN for Internet).
+        - QNAME: Encoded domain name
+        - QTYPE: 16-bit type of query
+        - QCLASS: 16-bit class of query
         """
         qname = self.encode_domain_name()
         qtype_qclass = struct.pack(">HH", self.qtype, self.qclass)
@@ -109,7 +108,7 @@ class DnsQuery:
         """
         Sends the DNS query to the specified DNS server and returns the response.
         """
-        # Create a UDP socket\
+        # Create a UDP socket
         i = 1
         retries = max_retries
         while retries != 0:
@@ -122,7 +121,7 @@ class DnsQuery:
                 # Build the DNS query packet
                 query_packet = self.build()
 
-                # Send the packet to the DNS server (requires a bytes-like object)
+                # Send the packet to the DNS server
                 sock.sendto(query_packet, (dns_server, port))
 
                 # Receive the response from the DNS server

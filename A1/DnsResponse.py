@@ -190,9 +190,9 @@ class DnsResponse:
         DECODE THE QUESTION
 
         the question contains:
-        - domain: The domain name to which the response pertains (e.g., "www.mcgill.ca").
+        - domain: The domain name to which the response pertains
         - rtype: The type of query (0x0001, 0x0002, or 0x000f).
-        - rclass: The class of query (default is 0x0001, Internet class).
+        - rclass: The class of query
         """
         # unpack question
         self.question["domain"], offset = self.decode_domain_name(raw_response, offset)
@@ -208,12 +208,12 @@ class DnsResponse:
         store as list of answers
 
         an answer contains:
-        - domain_name: The domain name to which the answer record pertains (e.g., "www.mcgill.ca").
+        - domain_name: The domain name to which the answer record pertains
         - rtype: The type of data in the RDATA field (0x0001, 0x0002, 0x0005, or 0x000f).
         - rclass: The class of response (expected is 0x0001, Internet class; error otherwise).
-        - ttl: 
-        - rdlength: 
-        - rdata: 
+        - ttl:
+        - rdlength:
+        - rdata:
         """
         self.answers, offset = self.decode_answer(
             self.header["ancount"], raw_response, offset
