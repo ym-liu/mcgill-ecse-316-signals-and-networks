@@ -22,10 +22,10 @@ def init_args():
 
     return args
 
-# computes 1 fft
 def fft(signal):
 
     N = len(signal)
+
     if N <= 16:  # Base case:
         frequency_domain = []  # Output list for DFT coefficients
         # Loop over all frequency indices k
@@ -50,13 +50,15 @@ def fft(signal):
     # Combine step
     fft_final = [0] * N
     for k in range((N // 2)):
-        exponent = np.exp(-2j * np.pi * k / N)
-        fft_final[k] = fft_even[k] + exponent * fft_odd[k] # First half
-        fft_final[k + N // 2] = fft_even[k] - exponent * fft_odd[k]  # Second half
+        fft_final[k] = (
+            fft_even[k] + np.exp(-2j * np.pi * k / N) * fft_odd[k]
+        )  # First half
+        fft_final[k + N // 2] = (
+            fft_even[k] - np.exp(-2j * np.pi * k / N) * fft_odd[k]
+        )  # Second half
 
     return fft_final
 
-# TODO: Change this
 def twod_fft(signal):
     rows, cols = signal.shape
 
@@ -72,9 +74,25 @@ def twod_fft(signal):
 
     return col_transformed
 
-# TODO: Change this
-def pad_image_to_power_of_2(image):
+args = init_args()
 
+print(f"MODE: {args.mode}")
+print(f"IMAGE: {args.image}")
+
+
+image = cv2.imread(args.image, cv2.IMREAD_GRAYSCALE) # putin grayscale
+'''
+fft_result = np.fft.fft2(image)  # Compute the 2D FFT
+custom_fft2 = twod_fft(image) # custom two 2d fft
+
+# Compute the difference
+difference = np.abs(custom_fft2 - fft_result)
+print("Max Difference (2D FFT):", difference.max())
+'''
+def pad_image_to_power_of_2(image):
+    """
+    Pads a 2D image with zeros to the next power of 2 for both dimensions.
+    """
     height, width = image.shape
 
     # Find the next power of 2 for height and width
@@ -89,66 +107,25 @@ def pad_image_to_power_of_2(image):
 
     return padded_image
 
-def get_image(image_path):
-     # laod the image
-    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE) # putin grayscale
+paded_image = pad_image_to_power_of_2(image)
 
-    return pad_image_to_power_of_2(image)
+print(np.array(image)[473])
+print(len(np.array(image)[473]))
+print(np.array(image)[473][629])
+row = image[0, :]  # Take the first row
+custom_fft_row = fft(row)
+numpy_fft_row = np.fft.fft(row)
 
-def main():
-    """
-    Parse the command line arguments (STDIN)
-    """
-    args = init_args()
+print("Max Difference (Row FFT):", np.abs(np.array(custom_fft_row) - numpy_fft_row).max())
 
-    """
-    Print arguments
-    """
-    print(f"MODE: {args.mode}")
-    print(f"IMAGE: {args.image}") # TODO: error if no image found
+'''
+signal = np.random.rand(474)  # Example signal
+fft_even = fft(image[0::2])  # Recursive call
+fft_odd = fft(image[1::2])  # Recursive call
 
-    image = get_image(args.image)
+numpy_fft_even = np.fft.fft(image[0::2])
+numpy_fft_odd = np.fft.fft(image[1::2])
 
-    fft_final = twod_fft(image)
-
-    ########### RESULT ###############
-    if args.mode == 1:
-    # Display the result
-
-        ffted_image = np.log(1 + np.abs(fft_final))
-
-        # Display the result
-        plt.figure(figsize=(12, 6))
-
-        plt.subplot(1, 2, 1)
-        plt.imshow(image, cmap="gray")
-        plt.title("Original Image")
-        plt.axis("off")
-
-        plt.subplot(1, 2, 2)
-        plt.imshow(ffted_image, norm=LogNorm(), cmap="gray")
-        plt.title("Log-Scaled Fourier Transform")
-        plt.axis("off")
-
-        plt.tight_layout()
-        plt.show()
-    elif args.mode == 2:
-        #ddenoise
-        #inverse fft
-
-        # Step 5: Display the original and denoised images
-        plt.figure(figsize=(12, 6))
-        plt.subplot(1, 2, 1)
-        plt.imshow(image, cmap="gray")
-        plt.title("Original Image")
-        plt.axis("off")
-
-        plt.subplot(1, 2, 2)
-        plt.imshow(denoised_image, cmap="gray")
-        plt.title("Denoised Image")
-        plt.axis("off")
-        plt.tight_layout()
-        plt.show()
-
-if __name__ == "__main__":
-    main()
+print("Max Difference (Even):", np.abs(np.array(fft_even) - numpy_fft_even).max())
+print("Max Difference (Odd):", np.abs(np.array(fft_odd) - numpy_fft_odd).max())
+'''
