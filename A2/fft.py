@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 import cv2
 import os
+import time
 
 # global variables
 BASE_CASE_LENGTH = 16
@@ -37,6 +38,30 @@ def init_args():
     return args
 
 
+# computes naive 1D DFT
+def dft(signal):
+
+    N = len(signal)  # length of signal we want to decompose
+
+    # initialize output list for DFT coefficients (frequency domain)
+    dft = []
+
+    # loop over all frequency indices k
+    for k in range(N):
+        X_k = 0  # initialize the k-th DFT coefficient
+
+        # loop over all time indices n
+        for n in range(N):
+            X_k += signal[n] * np.exp(
+                -2j * np.pi * k * n / N
+            )  # accumulate sum for n = 0,1,2,...,N-1
+
+        # append computed k-th DFT coefficient
+        dft.append(X_k)
+
+    return dft
+
+
 # computes 1D Cooley-Tukey FFT
 def fft(signal):
 
@@ -44,24 +69,7 @@ def fft(signal):
 
     """Base case: Naive DFT method"""
     if N <= BASE_CASE_LENGTH:
-
-        # initialize output list for DFT coefficients (frequency domain)
-        dft = []
-
-        # loop over all frequency indices k
-        for k in range(N):
-            X_k = 0  # initialize the k-th DFT coefficient
-
-            # loop over all time indices n
-            for n in range(N):
-                X_k += signal[n] * np.exp(
-                    -2j * np.pi * k * n / N
-                )  # accumulate sum for n = 0,1,2,...,N-1
-
-            # append computed k-th DFT coefficient
-            dft.append(X_k)
-
-        return dft
+        return dft(signal)
 
     """Inductive case: Cooley-Tukey FFT method"""
     # split the sum in the even and odd indices
@@ -110,6 +118,30 @@ def twod_fft(signal_image):
     return fft_final
 
 
+# computes naive 1D inverse DFT
+def inverse_dft(signal):
+
+    N = len(signal)  # length of signal we want to decompose
+
+    # initialize output list for inverse DFT coefficients (time domain)
+    inverse_dft = []
+
+    # loop over all time indices n
+    for n in range(N):
+        x_n = 0  # initialize the n-th inverse DFT coefficient
+
+        # loop over all frequency indices k
+        for k in range(N):
+            x_n += signal[k] * np.exp(
+                2j * np.pi * k * n / N
+            )  # accumulate sum for k = 0,1,2,...,N-1
+
+        # append computed n-th inverse DFT coefficient
+        inverse_dft.append(x_n / N)
+
+    return inverse_dft
+
+
 # computes the inverse 1D Cooley-Tukey FFT
 def inverse_fft(signal):
 
@@ -117,24 +149,7 @@ def inverse_fft(signal):
 
     """Base case: Naive DFT method"""
     if N <= BASE_CASE_LENGTH:
-
-        # initialize output list for inverse DFT coefficients (time domain)
-        inverse_dft = []
-
-        # loop over all time indices n
-        for n in range(N):
-            x_n = 0  # initialize the n-th inverse DFT coefficient
-
-            # loop over all frequency indices k
-            for k in range(N):
-                x_n += signal[k] * np.exp(
-                    2j * np.pi * k * n / N
-                )  # accumulate sum for k = 0,1,2,...,N-1
-
-            # append computed n-th inverse DFT coefficient
-            inverse_dft.append(x_n / N)
-
-        return inverse_dft
+        return inverse_dft(signal)
 
     """Inductive case: Cooley-Tukey FFT method"""
     # split the sum in the even and odd indices
@@ -339,110 +354,208 @@ def main():
     # initalize arguments from command line
     args = init_args()
 
-    """compute 2D FFT"""
-    # compute the 2D FFT of the given image
-    original_image, computed_2d_fft_image = compute_2d_fft(args.image)
+    # MODE 4: Runtime Complexity
+    if args.mode == 4:
 
-    """compute program outputs"""
-    # MODE 1: Fourier Transform
-    if args.mode == 1:
+        # initialize some parameters
+        sizes = []
+        for i in range(5, 11):
+            sizes.append(2**i)  # 2^5 to 2^10
 
-        # crop the image
-        final_image = crop(original_image, computed_2d_fft_image)
+        num_tries = 10  # re-run the experiment at least 10 times
+        confidence_mult = 2  # 97% confidence is 2 * std_dev
 
-        # log scale the plot
-        ffted_image = np.log(1 + np.abs(final_image))
+        # initialize dft and fft stats arrays
+        dft_means = []
+        dft_variances = []
+        dft_std_devs = []
+        fft_means = []
+        fft_variances = []
+        fft_std_devs = []
+
+        # run the experiment for each size
+        for size in sizes:
+
+            # initialize dft and fft runtimes arrays
+            dft_runtimes = []
+            fft_runtimes = []
+
+            # run the experiment 10 times
+            for _ in range(num_tries):
+                # create random 2D array
+                random_array = np.random.rand(size, size)
+
+                # get dft runtime
+                start = time.perf_counter()
+                dft(random_array)
+                end = time.perf_counter()
+                dft_runtimes.append(end - start)
+
+                # get fft runtime
+                start = time.perf_counter()
+                fft(random_array)
+                end = time.perf_counter()
+                fft_runtimes.append(end - start)
+
+            # compute dft and fft stats
+            dft_means.append(np.mean(dft_runtimes))
+            dft_variances.append(np.var(dft_runtimes))
+            dft_std_devs.append(np.std(dft_runtimes))
+            fft_means.append(np.mean(fft_runtimes))
+            fft_variances.append(np.var(fft_runtimes))
+            fft_std_devs.append(np.std(fft_runtimes))
+
+        # print means and variances to command line
+        i = 0
+        for size in sizes:
+            print(f"---------- Problem Size {size} * {size} Matrix ----------")
+            print(f"Naive DFT runtime mean: {dft_means[i]}")
+            print(f"Naive DFT runtime variance: {dft_variances[i]}")
+            print(f"Cooley-Tukey FFT runtime mean: {fft_means[i]}")
+            print(f"Cooley-Tukey FFT runtime variance: {fft_variances[i]}\n")
+            i += 1
+
+        # compute error bars proportional to std_dev * confidence_mult
+        # for 97% confidence interval
+        dft_error_bars = []
+        fft_error_bars = []
+        for std in dft_std_devs:
+            dft_error_bars.append(confidence_mult * std)
+        for std in fft_std_devs:
+            fft_error_bars.append(confidence_mult * std)
 
         # display the result
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(10, 6))
 
-        plt.subplot(1, 2, 1)  # original image
-        plt.imshow(original_image, cmap="gray")
-        plt.title("Original Image")
-        plt.axis("off")
+        plt.errorbar(
+            sizes,
+            dft_means,
+            yerr=dft_error_bars,
+            label="Naive DFT",
+            capsize=5,
+            color="mediumpurple",
+        )
+        plt.errorbar(
+            sizes,
+            fft_means,
+            yerr=fft_error_bars,
+            label="Cooley-Tukey FFT",
+            capsize=5,
+            color="lightcoral",
+        )
 
-        plt.subplot(1, 2, 2)  # fourier transform
-        plt.imshow(ffted_image, norm=LogNorm(), cmap="gray")
-        plt.title("Log-Scaled Fourier Transform")
-        plt.axis("off")
-
+        plt.xlabel("Problem Size (N x N Matrix)")
+        plt.ylabel("Average Runtime Over 10 Runs (in seconds)")
+        plt.title("Runtime vs Problem Size for Naive DFT and Cooley-Tukey FFT")
+        plt.xscale("log", base=2)
+        plt.yscale("log")
+        plt.grid(True, which="both", linewidth=0.75)
+        plt.legend()
         plt.tight_layout()
         plt.show()
 
-    # MODE 2: Denoise
-    elif args.mode == 2:
+    # MODES 1-3
+    else:
+        """compute 2D FFT"""
+        # compute the 2D FFT of the given image
+        original_image, computed_2d_fft_image = compute_2d_fft(args.image)
 
-        # denoise the image
-        denoised_image, non_zero_count = denoise_image(computed_2d_fft_image)
-
-        # crop the image
-        final_image = crop(original_image, denoised_image)
-
-        # transformn complex to float
-        final_image = np.abs(final_image)
-
-        # display the result
-        plt.figure(figsize=(12, 6))
-
-        plt.subplot(1, 2, 1)  # original image
-        plt.imshow(original_image, cmap="gray")
-        plt.title("Original Image")
-        plt.axis("off")
-
-        plt.subplot(1, 2, 2)  # denoised image
-        plt.imshow(final_image, cmap="gray")
-        plt.title("Denoised Image")
-        plt.axis("off")
-
-        plt.tight_layout()
-        plt.show()
-
-        # print num of non-zeros to command line
-        print(f"Number of non-zeros for denoised image: {non_zero_count}")
-
-    # MODE 3: Compression
-    elif args.mode == 3:
-
-        compression_levels = [0, 50, 75, 90, 97, 99]
-        compressed_images = []
-        non_zero_counts = []
-
-        # loop trhough compression %'s and compress image
-        for level in compression_levels:
-            # compress the image
-            compressed_image, non_zero_count = compress_image_high_magnitudes(
-                computed_2d_fft_image, level
-            )
+        """compute program outputs"""
+        # MODE 1: Fourier Transform
+        if args.mode == 1:
 
             # crop the image
-            final_image = crop(original_image, compressed_image)
+            final_image = crop(original_image, computed_2d_fft_image)
 
-            # transform complex to float
-            final_image = np.abs(final_image)
+            # log scale the plot
+            ffted_image = np.log(1 + np.abs(final_image))
 
-            # append to image list and count list
-            compressed_images.append(final_image)
-            non_zero_counts.append(non_zero_count)
+            # display the result
+            plt.figure(figsize=(12, 6))
 
-        # display the results
-        plt.figure(figsize=(12, 8))
-        for i, (image, level, count) in enumerate(
-            zip(compressed_images, compression_levels, non_zero_counts)
-        ):
-            plt.subplot(2, 3, i + 1)
-            plt.imshow(image, cmap="gray")
-            plt.title(f"{level}% Compressed Image")
+            plt.subplot(1, 2, 1)  # original image
+            plt.imshow(original_image, cmap="gray")
+            plt.title("Original Image")
             plt.axis("off")
 
+            plt.subplot(1, 2, 2)  # fourier transform
+            plt.imshow(ffted_image, norm=LogNorm(), cmap="gray")
+            plt.title("Log-Scaled Fourier Transform")
+            plt.axis("off")
+
+            plt.tight_layout()
+            plt.show()
+
+        # MODE 2: Denoise
+        elif args.mode == 2:
+
+            # denoise the image
+            denoised_image, non_zero_count = denoise_image(computed_2d_fft_image)
+
+            # crop the image
+            final_image = crop(original_image, denoised_image)
+
+            # transformn complex to float
+            final_image = np.abs(final_image)
+
+            # display the result
+            plt.figure(figsize=(12, 6))
+
+            plt.subplot(1, 2, 1)  # original image
+            plt.imshow(original_image, cmap="gray")
+            plt.title("Original Image")
+            plt.axis("off")
+
+            plt.subplot(1, 2, 2)  # denoised image
+            plt.imshow(final_image, cmap="gray")
+            plt.title("Denoised Image")
+            plt.axis("off")
+
+            plt.tight_layout()
+            plt.show()
+
             # print num of non-zeros to command line
-            print(f"Number of non-zeros at {level}% compression: {count}")
+            print(f"Number of non-zeros for denoised image: {non_zero_count}")
 
-        plt.tight_layout()
-        plt.show()
+        # MODE 3: Compression
+        elif args.mode == 3:
 
-    # MODE 4: Runtime Complexity
-    elif args.mode == 4:
-        pass
+            compression_levels = [0, 50, 75, 90, 97, 99]
+            compressed_images = []
+            non_zero_counts = []
+
+            # loop trhough compression %'s and compress image
+            for level in compression_levels:
+                # compress the image
+                compressed_image, non_zero_count = compress_image_high_magnitudes(
+                    computed_2d_fft_image, level
+                )
+
+                # crop the image
+                final_image = crop(original_image, compressed_image)
+
+                # transform complex to float
+                final_image = np.abs(final_image)
+
+                # append to image list and count list
+                compressed_images.append(final_image)
+                non_zero_counts.append(non_zero_count)
+
+            # display the results
+            plt.figure(figsize=(12, 8))
+            for i, (image, level, count) in enumerate(
+                zip(compressed_images, compression_levels, non_zero_counts)
+            ):
+                plt.subplot(2, 3, i + 1)
+                plt.imshow(image, cmap="gray")
+                plt.title(f"{level}% Compressed Image")
+                plt.axis("off")
+
+                # print num of non-zeros to command line
+                print(f"Number of non-zeros at {level}% compression: {count}")
+
+            plt.tight_layout()
+            plt.show()
 
 
 if __name__ == "__main__":
