@@ -5,6 +5,9 @@ import argparse
 import cv2
 import os
 
+# global variables
+BASE_CASE_LENGTH = 16
+
 
 def init_args():
     """parse the command line arguments (stdin)"""
@@ -12,10 +15,8 @@ def init_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
     # optional arguments
-    parser.add_argument(
-        "-m", type=int, choices=[1, 2, 3, 4], default=1, dest="mode")
-    parser.add_argument(
-        "-i", type=str, default="moonlanding.png", dest="image")
+    parser.add_argument("-m", type=int, choices=[1, 2, 3, 4], default=1, dest="mode")
+    parser.add_argument("-i", type=str, default="moonlanding.png", dest="image")
 
     # parse the arguments with the previously defined parser
     args = None
@@ -29,232 +30,292 @@ def init_args():
     if args.image is None:
         raise FileNotFoundError("Error: Image not Found")
 
-    """
-    Print arguments
-    """
+    """print arguments"""
     print(f"MODE: {args.mode}")
     print(f"IMAGE: {args.image}")
 
     return args
 
-# computes 1 fft
+
+# computes 1D Cooley-Tukey FFT
 def fft(signal):
 
-    N = len(signal)
-    if N <= 16:  # Base case:
-        frequency_domain = []  # Output list for DFT coefficients
-        # Loop over all frequency indices k
+    N = len(signal)  # length of signal we want to decompose
+
+    """Base case: Naive DFT method"""
+    if N <= BASE_CASE_LENGTH:
+
+        # initialize output list for DFT coefficients (frequency domain)
+        dft = []
+
+        # loop over all frequency indices k
         for k in range(N):
-            x_k = 0  # Initialize the k-th Fourier coefficient
-            # Loop over all time indices n
+            X_k = 0  # initialize the k-th DFT coefficient
+
+            # loop over all time indices n
             for n in range(N):
-                x_k += signal[n] * np.exp(
+                X_k += signal[n] * np.exp(
                     -2j * np.pi * k * n / N
-                )  # Accumulate the contribution from x[n]
-            frequency_domain.append(x_k)  # Append the result for frequency k
-        return frequency_domain
+                )  # accumulate sum for n = 0,1,2,...,N-1
 
-    # Split input into even and odd indices
-    x_even = signal[0::2]  # Elements at even indices
-    x_odd = signal[1::2]  # Elements at odd indices
+            # append computed k-th DFT coefficient
+            dft.append(X_k)
 
-    # Recursive FFT calls for even and odd parts
-    fft_even = fft(x_even)
-    fft_odd = fft(x_odd)
+        return dft
 
-    # Combine step
+    """Inductive case: Cooley-Tukey FFT method"""
+    # split the sum in the even and odd indices
+    X_even = signal[0::2]  # elements at even indices
+    X_odd = signal[1::2]  # elements at odd indices
+
+    # recursively call FFT for even and odd sums
+    fft_even = fft(X_even)
+    fft_odd = fft(X_odd)
+
+    # combine odd and even sums back together
     fft_final = [0] * N
     for k in range((N // 2)):
         exponent = np.exp(-2j * np.pi * k / N)
-        fft_final[k] = fft_even[k] + exponent * fft_odd[k]  # First half
-        fft_final[k + N // 2] = fft_even[k] - \
-            exponent * fft_odd[k]  # Second half
+        fft_final[k] = fft_even[k] + exponent * fft_odd[k]  # first half
+        fft_final[k + N // 2] = fft_even[k] - exponent * fft_odd[k]  # second half
 
     return fft_final
 
 
+# computes 2D Cooley-Tukey FFT
 def twod_fft(signal_image):
 
-    rows, coloumns = signal_image.shape
+    rows, columns = signal_image.shape
 
     # create two arrays with 0s for row and columns
-    row_fft = np.zeros((rows, coloumns), dtype=complex)
-    final_fft = np.zeros((rows, coloumns), dtype=complex)
+    fft_row = np.zeros((rows, columns), dtype=complex)
+    fft_final = np.zeros((rows, columns), dtype=complex)
 
     # fft on rows
     for i in range(rows):
         # go row by row
-        row_fft[i, :] = fft(signal_image[i, :])
+        fft_row[i, :] = fft(signal_image[i, :])
 
-    # now fft the columns on the ffted rows
-    for k in range(coloumns):
+    # now fft the columns on the fft'ed rows
+    for j in range(columns):
         # go column by column
-        final_fft[:, k] = fft(row_fft[:, k])
+        fft_final[:, j] = fft(fft_row[:, j])
 
-    return final_fft
+    return fft_final
 
-#inverse 1 d fft
+
+# computes the inverse 1D Cooley-Tukey FFT
 def inverse_fft(signal):
 
-    N = len(signal)
-    if N <= 16:  # Base case:
-        time_domain = []  # Output list for DFT coefficients
-        # Loop over all frequency indices k
+    N = len(signal)  # length of signal we want to decompose
+
+    """Base case: Naive DFT method"""
+    if N <= BASE_CASE_LENGTH:
+
+        # initialize output list for inverse DFT coefficients (time domain)
+        inverse_dft = []
+
+        # loop over all time indices n
         for n in range(N):
-            x_n = 0  # Initialize the k-th Fourier coefficient
-            # Loop over all time indices n
+            x_n = 0  # initialize the n-th inverse DFT coefficient
+
+            # loop over all frequency indices k
             for k in range(N):
                 x_n += signal[k] * np.exp(
                     2j * np.pi * k * n / N
-                )  # Accumulate the contribution from x[n]
-            time_domain.append(x_n / N)  # Append the result for frequency k
-        return time_domain
+                )  # accumulate sum for k = 0,1,2,...,N-1
 
-    # Split input into even and odd indices
-    x_even = signal[0::2]  # Elements at even indices
-    x_odd = signal[1::2]  # Elements at odd indices
+            # append computed n-th inverse DFT coefficient
+            inverse_dft.append(x_n / N)
 
-    # Recursive FFT calls for even and odd parts
+        return inverse_dft
+
+    """Inductive case: Cooley-Tukey FFT method"""
+    # split the sum in the even and odd indices
+    x_even = signal[0::2]  # elements at even indices
+    x_odd = signal[1::2]  # elements at odd indices
+
+    # recursively call inverse_FFT for even and odd sums
     inverse_fft_even = inverse_fft(x_even)
     inverse_fft_odd = inverse_fft(x_odd)
 
-    # Combine step
+    # combine odd and even sums back together
     inverse_fft_final = [0] * N
     for k in range((N // 2)):
         exponent = np.exp(2j * np.pi * k / N)
-        inverse_fft_final[k] = (inverse_fft_even[k] + exponent * inverse_fft_odd[k])  # First half
-        inverse_fft_final[k + N // 2] = (inverse_fft_even[k] - \
-            exponent * inverse_fft_odd[k] ) # Second half
+        inverse_fft_final[k] = (
+            inverse_fft_even[k] + exponent * inverse_fft_odd[k]
+        )  # first half
+        inverse_fft_final[k + N // 2] = (
+            inverse_fft_even[k] - exponent * inverse_fft_odd[k]
+        )  # second half
 
     return inverse_fft_final
 
-# inverse 2d fft
+
+# computes the inverse 2D Cooley-Tukey FFT
 def twod_inverse_fft(signal_image):
 
     rows, coloumns = signal_image.shape
 
     # create two arrays with 0s for row and columns
-    column_fft = np.zeros((rows, coloumns), dtype=complex)
-    final_fft = np.zeros((rows, coloumns), dtype=complex)
+    inverse_fft_column = np.zeros((rows, coloumns), dtype=complex)
+    inverse_fft_final = np.zeros((rows, coloumns), dtype=complex)
 
     # inverse fft on columns
     for i in range(coloumns):
         # go row by row
-        column_fft[:, i] = inverse_fft(signal_image[:, i])
+        inverse_fft_column[:, i] = inverse_fft(signal_image[:, i])
 
     # now inverse fft the rows on the inverse ffted columns
     for k in range(rows):
         # go column by column
-        final_fft[k, :] = inverse_fft(column_fft[k, :])
+        inverse_fft_final[k, :] = inverse_fft(inverse_fft_column[k, :])
 
-    return final_fft
+    return inverse_fft_final
 
+
+# finds power of 2
 def find_power(height, width):
     return int(2 ** np.ceil(np.log2(height))), int(2 ** np.ceil(np.log2(width)))
 
+
+# pad image such that its pixels are a power of 2
 def pad_image(image):
 
     height, width = image.shape
 
-    # Fin the next power of 2
+    # find the next power of 2
     padded_height, padded_width = find_power(height, width)
 
-    # Array with 0s with the dimensions of the padded image
+    # 2D array filled with 0s with the dimensions of the padded image
     padded_image = np.zeros((padded_height, padded_width), dtype=image.dtype)
 
-    # Copy the original image into the padded array
-    # leaving the rest to 0
+    # copy original image into padded array, leaving the rest to 0
     padded_image[:height, :width] = image
 
     return padded_image
 
-def compute_2d_fft(image_path):
 
-    image_original = cv2.imread(
-        image_path, cv2.IMREAD_GRAYSCALE)  # get original image
-
-    padded_image = pad_image(image_original)  # pad teh iamge
-    fft_final = twod_fft(padded_image)  # compute 2d fft
-
-    return image_original, fft_final
-
-
-def denoise_image(computed_2d_fft):
-
-    rows, columns = computed_2d_fft.shape
-
-    # Create coordinate grids
-    Y, X = np.ogrid[:rows, :columns]
-
-    # Compute distances to the nearest edge
-    dist_y = np.minimum(Y, rows - Y)
-    dist_x = np.minimum(X, columns - X)
-    distance = np.sqrt(dist_y**2 + dist_x**2)
-
-    # Create a mask to keep low frequencies (near edges)
-    mask = distance <= 90
-
-    # Apply the mask more efficient then looping
-    filtered_fft = computed_2d_fft * mask
-
-    return filtered_fft
-
+# crop image to remove padded image pixels
 def crop(original_image, final_image):
 
     original_height, original_width = original_image.shape
     return final_image[:original_height, :original_width]
 
 
-def main():
+# MODE 1: computes 2D Cooley-Tukey FFT given an image file path
+def compute_2d_fft(image_path):
 
+    image_original = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)  # get original image
+
+    padded_image = pad_image(image_original)  # pad the image so that it's a power of 2
+    fft_final = twod_fft(padded_image)  # compute 2D Cooley-Tukey FFT
+
+    return image_original, fft_final
+
+
+# MODE 2: denoises an array (an image) given a 2D FFT
+def denoise_image(computed_2d_fft):
+
+    rows, columns = computed_2d_fft.shape
+
+    # create coordinate grids
+    Y, X = np.ogrid[:rows, :columns]
+
+    # compute distances to the nearest edge
+    dist_y = np.minimum(Y, rows - Y)
+    dist_x = np.minimum(X, columns - X)
+    distance = np.sqrt(dist_y**2 + dist_x**2)
+
+    # create a mask to keep low frequencies (near edges)
+    mask = distance <= 90
+
+    # apply the mask more efficient then looping
+    fft_filtered = computed_2d_fft * mask
+
+    # finally, invert to get back the filtered original image
+    denoised_image = twod_inverse_fft(fft_filtered)
+
+    return denoised_image
+
+
+# MODE 3: compresses an array (an image) given a 2D FFT
+def compress_image(computed_2d_fft):
+    pass
+
+
+# main
+def main():
+    """parse command line"""
+    # initalize arguments from command line
     args = init_args()
-    # Computes 2d fft
+
+    """compute 2D FFT"""
+    # compute the 2D FFT of the given image
     original_image, computed_2d_fft_image = compute_2d_fft(args.image)
 
-    ########### RESULT ###############
-
+    """compute program outputs"""
+    # MODE 1: Fourier Transform
     if args.mode == 1:
 
-        # crop the iamge
+        # crop the image
         final_image = crop(original_image, computed_2d_fft_image)
+
+        # log scale the plot
         ffted_image = np.log(1 + np.abs(final_image))
 
-        # Display the result
+        # display the result
         plt.figure(figsize=(12, 6))
 
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 2, 1)  # original image
         plt.imshow(original_image, cmap="gray")
         plt.title("Original Image")
         plt.axis("off")
 
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 2, 2)  # fourier transform
         plt.imshow(ffted_image, norm=LogNorm(), cmap="gray")
         plt.title("Log-Scaled Fourier Transform")
         plt.axis("off")
 
         plt.tight_layout()
         plt.show()
-    elif args.mode == 2:
-        denoised_iamge = denoise_image(computed_2d_fft_image)
 
-        final_denoised_image = twod_inverse_fft(denoised_iamge)
-        final_image = crop(original_image, final_denoised_image)
+    # MODE 2: Denoise
+    elif args.mode == 2:
+
+        # denoise the image
+        denoised_image = denoise_image(computed_2d_fft_image)
+
+        # crop the image
+        final_image = crop(original_image, denoised_image)
 
         # transformn complex to float
         final_image = np.abs(final_image)
 
+        # display the result
         plt.figure(figsize=(12, 6))
-        plt.subplot(1, 2, 1)
+
+        plt.subplot(1, 2, 1)  # original image
         plt.imshow(original_image, cmap="gray")
         plt.title("Original Image")
         plt.axis("off")
 
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 2, 2)  # denoised image
         plt.imshow(final_image, cmap="gray")
         plt.title("Denoised Image")
         plt.axis("off")
+
         plt.tight_layout()
         plt.show()
+
+    # MODE 3: Compression
+    elif args.mode == 3:
+        pass
+
+    # MODE 4: Runtime Complexity
+    elif args.mode == 4:
+        pass
 
 
 if __name__ == "__main__":
