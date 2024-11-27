@@ -243,7 +243,10 @@ def denoise_image(computed_2d_fft):
     # finally, invert to get back the filtered original image
     denoised_image = twod_inverse_fft(fft_filtered)
 
-    return denoised_image
+    # count the num of non-zero coefficients
+    non_zero_count = np.count_nonzero(fft_filtered)
+
+    return denoised_image, non_zero_count
 
 
 # MODE 3: compresses an array (an image) given a 2D FFT
@@ -306,7 +309,7 @@ def compress_image_low_high_frequencies(computed_2d_fft, compression_level):
     compression_level_high = num_high_fraction / num_high * 100
 
     # compute magnitude threshold for given compression %
-    threshold = np.percentile(flattened_magnitude, compression_level_high)
+    threshold = np.percentile(flattened_magnitude, compression_level)
 
     # create mask to keep high frequencies
     mask_high = (magnitude >= threshold) & ~mask_low
@@ -370,7 +373,7 @@ def main():
     elif args.mode == 2:
 
         # denoise the image
-        denoised_image = denoise_image(computed_2d_fft_image)
+        denoised_image, non_zero_count = denoise_image(computed_2d_fft_image)
 
         # crop the image
         final_image = crop(original_image, denoised_image)
@@ -394,6 +397,9 @@ def main():
         plt.tight_layout()
         plt.show()
 
+        # print num of non-zeros to command line
+        print(f"Number of non-zeros for denoised image: {non_zero_count}")
+
     # MODE 3: Compression
     elif args.mode == 3:
 
@@ -404,7 +410,7 @@ def main():
         # loop trhough compression %'s and compress image
         for level in compression_levels:
             # compress the image
-            compressed_image, non_zero_count = compress_image_low_high_frequencies(
+            compressed_image, non_zero_count = compress_image_high_magnitudes(
                 computed_2d_fft_image, level
             )
 
