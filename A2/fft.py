@@ -201,7 +201,7 @@ def pad_image(image):
 def crop(original_image, final_image):
 
     original_height, original_width = original_image.shape
-    return final_image[:original_height, :original_width]
+    return final_image[:original_height, :original_width].copy()
 
 
 # MODE 1: computes 2D Cooley-Tukey FFT given an image file path
@@ -228,10 +228,10 @@ def denoise_image(computed_2d_fft):
     dist_x = np.minimum(X, columns - X)
     distance = np.sqrt(dist_y**2 + dist_x**2)
 
-    # create a mask to keep low frequencies (near edges)
+    # create mask to keep low frequencies (near edges)
     mask = distance <= 90
 
-    # apply the mask more efficient then looping
+    # apply mask more efficient than looping
     fft_filtered = computed_2d_fft * mask
 
     # finally, invert to get back the filtered original image
@@ -241,8 +241,27 @@ def denoise_image(computed_2d_fft):
 
 
 # MODE 3: compresses an array (an image) given a 2D FFT
-def compress_image(computed_2d_fft):
-    pass
+def compress_image(computed_2d_fft, compression_level):
+
+    # flatten FFT into 1D to get magnitudes
+    magnitude = np.abs(computed_2d_fft)
+
+    # compute magnitude threshold for given compression %
+    threshold = np.percentile(magnitude, compression_level)
+
+    # create mask to keep coefficients above threshold
+    mask = magnitude >= threshold
+
+    # apply mask to retain largest coefficients (more efficient than looping)
+    fft_compressed = computed_2d_fft * mask
+
+    # finally, invert to get back the compressed original image
+    compressed_image = twod_inverse_fft(fft_compressed)
+
+    # count the num of non-zero coefficients
+    non_zero_count = np.count_nonzero(fft_compressed)
+
+    return compressed_image, non_zero_count
 
 
 # main
@@ -311,7 +330,43 @@ def main():
 
     # MODE 3: Compression
     elif args.mode == 3:
-        pass
+
+        compression_levels = [0, 50, 75, 90, 97, 99]
+        compressed_images = []
+        non_zero_counts = []
+
+        # loop trhough compression %'s and compress image
+        for level in compression_levels:
+            # compress the image
+            compressed_image, non_zero_count = compress_image(
+                computed_2d_fft_image, level
+            )
+
+            # crop the image
+            final_image = crop(original_image, compressed_image)
+
+            # transform complex to float
+            final_image = np.abs(final_image)
+
+            # append to image list and count list
+            compressed_images.append(final_image)
+            non_zero_counts.append(non_zero_count)
+
+        # display the results
+        plt.figure(figsize=(12, 8))
+        for i, (image, level, count) in enumerate(
+            zip(compressed_images, compression_levels, non_zero_counts)
+        ):
+            plt.subplot(2, 3, i + 1)
+            plt.imshow(image, cmap="gray")
+            plt.title(f"{level}% Compressed Image")
+            plt.axis("off")
+
+            # print num of non-zeros to command line
+            print(f"Number of non-zeros at {level}% compression: {count}")
+
+        plt.tight_layout()
+        plt.show()
 
     # MODE 4: Runtime Complexity
     elif args.mode == 4:
