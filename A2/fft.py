@@ -84,6 +84,12 @@ def fft(signal):
 
 # computes 2D Cooley-Tukey FFT
 def twod_fft(signal_image):
+    """signal_image = np.array(
+        [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+        ]
+    )"""
 
     rows, columns = signal_image.shape
 
@@ -241,7 +247,8 @@ def denoise_image(computed_2d_fft):
 
 
 # MODE 3: compresses an array (an image) given a 2D FFT
-def compress_image(computed_2d_fft, compression_level):
+# by keeping high magnitudes
+def compress_image_high_magnitudes(computed_2d_fft, compression_level):
 
     # flatten FFT into 1D to get magnitudes
     magnitude = np.abs(computed_2d_fft)
@@ -262,6 +269,65 @@ def compress_image(computed_2d_fft, compression_level):
     non_zero_count = np.count_nonzero(fft_compressed)
 
     return compressed_image, non_zero_count
+
+
+# MODE 3: compresses an array (an image) given a 2D FFT
+# by keeping low and high frequencies
+def compress_image_low_high_frequencies(computed_2d_fft, compression_level):
+
+    # get rows, cols of FFT
+    rows, columns = computed_2d_fft.shape
+
+    """low frequencies"""
+    # define low frequency radius (center of FFT), based on compression level
+    max_radius = min(rows, columns) // 2  # image size // 2
+    radius = int(max_radius * (compression_level / 100))
+
+    # create mask to keep low frequencies
+    Y, X = np.ogrid[:rows, :columns]  # create coordinate grids
+    dist_y = Y - (rows // 2)  # compute dist_y from center
+    dist_x = X - (columns // 2)  # compute dist_x from center
+    distance_from_center = np.sqrt(dist_y**2 + dist_x**2)
+    mask_low = distance_from_center <= radius  # create mask
+
+    """high frequencies"""
+    # flatten FFT into 1D to get higher frequency
+    magnitude = np.abs(computed_2d_fft)
+    flattened_magnitude = magnitude[~mask_low]  # remove low frequencies
+
+    # calculate compression level for high frequencies after mask_low
+    # num of high-f = total - (num of low-f)
+    # num of high-f to keep = (total * compression%) - (num of low-f)
+    # compression_level_high = (num of high-f to keep) / (num of high-f)
+    num_low = np.count_nonzero(mask_low)
+    num_high = (rows * columns) - num_low
+    num_high_fraction = int((rows * columns * compression_level / 100) - num_low)
+    num_high_fraction = max(num_high_fraction, 0)  # edge case
+    compression_level_high = num_high_fraction / num_high * 100
+
+    # compute magnitude threshold for given compression %
+    threshold = np.percentile(flattened_magnitude, compression_level_high)
+
+    # create mask to keep high frequencies
+    mask_high = (magnitude >= threshold) & ~mask_low
+
+    """low and high frequencies"""
+    # combine mask for low and hig frequencies
+    mask = mask_low | mask_high
+
+    # apply mask to retain low and high frequencies
+    fft_compressed = computed_2d_fft * mask
+
+    # finally, invert to get back the compressed original image
+    compressed_image = twod_inverse_fft(fft_compressed)
+
+    # count the num of non-zero coefficients
+    non_zero_count = np.count_nonzero(fft_compressed)
+
+    return np.abs(compressed_image), non_zero_count
+
+
+# MODE 4: analyze runtime complexity
 
 
 # main
@@ -338,7 +404,7 @@ def main():
         # loop trhough compression %'s and compress image
         for level in compression_levels:
             # compress the image
-            compressed_image, non_zero_count = compress_image(
+            compressed_image, non_zero_count = compress_image_low_high_frequencies(
                 computed_2d_fft_image, level
             )
 
