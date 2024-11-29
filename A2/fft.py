@@ -479,7 +479,7 @@ def main():
             plt.axis("off")
 
             plt.subplot(1, 2, 2)  # fourier transform
-            plt.imshow(ffted_image, norm=LogNorm(), cmap="gray")
+            plt.imshow(ffted_image, norm=LogNorm())
             plt.title("Log-Scaled Fourier Transform")
             plt.axis("off")
 
